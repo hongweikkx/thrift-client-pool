@@ -26,13 +26,6 @@ const (
 	POOL_THRIFT_PROTOCOL_JSON
 )
 
-const (
-	POOL_THRIFT_TRANSPORT_COMMON = iota
-	POOL_THRIFT_TRANSPORT_FRAMED
-	POOL_THRIFT_TRANSPORT_BUFFERED
-)
-
-
 func NewPoolDefaultConfig() PoolConfig{
 	return PoolConfig{
 		Address:          "localhost:9000",
