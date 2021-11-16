@@ -8,6 +8,9 @@ import (
 	"context"
 	"fmt"
 	pool2 "github.com/hongweikkx/thrift-client-pool"
+	"os/exec"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -66,6 +69,7 @@ func handleClient(client *tutorial.CalculatorClient) (err error) {
 }
 
 func runClients(transportFactory thrift.TTransportFactory, protocolFactory thrift.TProtocolFactory, addr string, secure bool, cfg *thrift.TConfiguration, num int) error {
+	twNum1 := getTimeWaitNum()
 	now := time.Now().UnixNano()
 	for i := 0; i < num; i++ {
 		err := runClient(transportFactory, protocolFactory, addr, secure, cfg)
@@ -73,7 +77,7 @@ func runClients(transportFactory thrift.TTransportFactory, protocolFactory thrif
 			fmt.Printf("runClient error:%+v\n", err)
 		}
 	}
-	fmt.Printf("finish time:%+vms\n", (time.Now().UnixNano() - now)/1000000)
+	fmt.Printf("cost time:%+vms TIME_WAIT: %+v -> %+v\n", (time.Now().UnixNano() - now)/1000000, twNum1, getTimeWaitNum())
 	return nil
 }
 
@@ -98,6 +102,7 @@ func runClient(transportFactory thrift.TTransportFactory, protocolFactory thrift
 }
 
 func runClientsPool(addr string, protocol int, framed bool, buffered bool,secure bool, num int) error {
+	twNum1 := getTimeWaitNum()
 	conf := pool2.NewPoolDefaultConfig()
 	conf.Address = addr
 	conf.Protocol = protocol
@@ -128,7 +133,15 @@ func runClientsPool(addr string, protocol int, framed bool, buffered bool,secure
 		}(i)
 	}
 	wg.Wait()
-	fmt.Printf("finish time:%+vms\n", (time.Now().UnixNano() - now)/1000000)
+	fmt.Printf("cost time:%+vms TIME_WAIT: %+v -> %+v\n", (time.Now().UnixNano() - now)/1000000, twNum1, getTimeWaitNum())
 	pool.Destroy(ctx)
 	return nil
+}
+
+func getTimeWaitNum() int{
+	cmd := exec.Command("/bin/sh", "-c", "netstat -an|awk '/tcp/ {print $6}' | sort | uniq -c | grep TIME_WAIT | sed 's/[^0-9]//g'")
+	twNumS, _ := cmd.Output()
+	twNumS2 := strings.Trim(string(twNumS), "\n")
+	num, _ := strconv.Atoi(twNumS2)
+	return num
 }
