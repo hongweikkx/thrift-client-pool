@@ -2,19 +2,19 @@ package pool
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"github.com/apache/thrift/lib/go/thrift"
 	commonPool "github.com/jolestar/go-commons-pool/v2"
 )
 
 type PoolConfig struct {
 	// thrift conf
-	Address  string
-	Protocol int
-	Secure bool
+	Address           string
+	Protocol          int
+	Secure            bool
 	IsTransportBuffer bool
-	BufferSize int
-	IsTransportFrame bool
+	BufferSize        int
+	IsTransportFrame  bool
 	*thrift.TConfiguration
 	*commonPool.ObjectPoolConfig
 }
@@ -26,16 +26,17 @@ const (
 	POOL_THRIFT_PROTOCOL_JSON
 )
 
-func NewPoolDefaultConfig() PoolConfig{
+// NewPoolDefaultConfig 返回默认的连接池配置
+func NewPoolDefaultConfig() PoolConfig {
 	return PoolConfig{
-		Address:          "localhost:9000",
-		Protocol:         POOL_THRIFT_PROTOCOL_BINARY,
-		Secure:           false,
+		Address:           "localhost:9000",
+		Protocol:          POOL_THRIFT_PROTOCOL_BINARY,
+		Secure:            false,
 		IsTransportBuffer: false,
-		BufferSize: 0,
-		IsTransportFrame: false,
-		TConfiguration:   &thrift.TConfiguration{},
-		ObjectPoolConfig: commonPool.NewDefaultPoolConfig(),
+		BufferSize:        0,
+		IsTransportFrame:  false,
+		TConfiguration:    &thrift.TConfiguration{},
+		ObjectPoolConfig:  commonPool.NewDefaultPoolConfig(),
 	}
 }
 
@@ -44,14 +45,15 @@ type Pool struct {
 	*commonPool.ObjectPool
 }
 
-func NewPool(config PoolConfig) *Pool{
+// NewPool 创建一个新的 Thrift 连接池
+func NewPool(config PoolConfig) *Pool {
 	return &Pool{
-		Config:  config,
+		Config:     config,
 		ObjectPool: NewObjPool(config),
 	}
 }
 
-func (p *Pool) BorrowObject(ctx context.Context) (*ThriftClient, error){
+func (p *Pool) BorrowObject(ctx context.Context) (*ThriftClient, error) {
 	client, err := p.ObjectPool.BorrowObject(ctx)
 	if err != nil {
 		return nil, err
@@ -59,10 +61,14 @@ func (p *Pool) BorrowObject(ctx context.Context) (*ThriftClient, error){
 	return client.(*ThriftClient), nil
 }
 
+// ReturnObject 将借用的对象归还到池中
+func (p *Pool) ReturnObject(ctx context.Context, obj *ThriftClient) error {
+	return p.ObjectPool.ReturnObject(ctx, obj)
+}
+
 func (p *Pool) Destroy(ctx context.Context) {
 	p.ObjectPool.Close(ctx)
 }
-
 
 type ThriftClient struct {
 	transPort thrift.TTransport
@@ -110,7 +116,7 @@ func (f *ThriftClientFactory) MakeObject(ctx context.Context) (*commonPool.Poole
 	case POOL_THRIFT_PROTOCOL_BINARY:
 		protocolFactory = thrift.NewTBinaryProtocolFactoryConf(nil)
 	default:
-		return nil, errors.New("invalid protol conf")
+		return nil, fmt.Errorf("invalid protocol: %d", f.conf.Protocol)
 	}
 
 	iprot := protocolFactory.GetProtocol(transport)
@@ -138,7 +144,8 @@ func (f *ThriftClientFactory) PassivateObject(ctx context.Context, object *commo
 	return nil
 }
 
-func NewObjPool(config PoolConfig) *commonPool.ObjectPool{
+// NewObjPool 创建一个新的对象池，用于管理 Thrift 连接
+func NewObjPool(config PoolConfig) *commonPool.ObjectPool {
 	factory := ThriftClientFactory{conf: config}
 	return commonPool.NewObjectPool(context.Background(), &factory, config.ObjectPoolConfig)
 }
